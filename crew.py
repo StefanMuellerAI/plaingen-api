@@ -3,6 +3,9 @@ from crewai.project import CrewBase, agent, crew, task
 from crewai_tools import SerperDevTool
 from models import LinkedInResearchOutput
 
+from dotenv import load_dotenv
+load_dotenv()
+
 @CrewBase
 class LatestAiDevelopmentCrew():
     """LatestAiDevelopment crew"""
