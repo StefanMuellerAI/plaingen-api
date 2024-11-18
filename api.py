@@ -54,6 +54,8 @@ app.add_middleware(
 # OpenAI Client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
 # API Key Setup
 API_KEY = os.getenv('API_KEY')
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
