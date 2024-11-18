@@ -5,6 +5,8 @@ from dotenv import load_dotenv
 os.environ["OTEL_PYTHON_DISABLED"] = "true"
 os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
 
+
+
 # Dann erst die restlichen Imports
 from fastapi import FastAPI, HTTPException, Security, Depends, Request
 from fastapi.security.api_key import APIKeyHeader, APIKey
@@ -48,6 +50,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# OpenAI Client
+client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 # API Key Setup
 API_KEY = os.getenv('API_KEY')
@@ -144,8 +149,7 @@ def load_prompt(transformation: str, text: str) -> str:
     prompt_template = next(group for group in match.groups() if group is not None).strip()
     return prompt_template.replace("{text}", text)
 
-# OpenAI Client
-client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+
 
 @app.post("/transform-text", response_model=TextTransformResponse)
 @limiter.limit("100/minute")
