@@ -25,6 +25,7 @@ from openai import OpenAI
 from datetime import datetime
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+import litellm
 from slowapi.errors import RateLimitExceeded
 
 # Lade Umgebungsvariablen
@@ -55,10 +56,12 @@ app.add_middleware(
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-
+litellm.api_key = os.getenv('OPENAI_API_KEY')
 # API Key Setup
 API_KEY = os.getenv('API_KEY')
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+
 
 async def get_api_key(
     api_key_header: str = Depends(api_key_header)
