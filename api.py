@@ -21,6 +21,7 @@ import litellm
 from slowapi.errors import RateLimitExceeded
 import json
 import asyncio
+from async_timeout import timeout
 from fastapi.responses import JSONResponse
 
 # Lade Umgebungsvariablen
@@ -42,9 +43,9 @@ app.state.limiter = limiter
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",  # Für lokale Entwicklung
-        "https://plaingen-nxmo9x6qp-stefan-ai.vercel.app",  # Deine Vercel Domain
-        "https://easiergen.de",  # Falls du eine Custom Domain nutzt
+        "http://localhost:8000",
+        "https://plaingen-nxmo9x6qp-stefan-ai.vercel.app",
+        "https://easiergen.de",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -126,8 +127,7 @@ async def execute_task(
 ):
     """Führt einen spezifischen Task aus"""
     try:
-        # Setze Timeout für die gesamte Operation
-        async with asyncio.timeout(60):  # 60 Sekunden Timeout
+        async with timeout(60):  # 60 Sekunden Timeout
             # Lade avoid_words
             avoid_words = load_avoid_words()
             
