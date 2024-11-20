@@ -20,6 +20,8 @@ from slowapi.util import get_remote_address
 import litellm
 from slowapi.errors import RateLimitExceeded
 import json
+import asyncio
+from fastapi.responses import JSONResponse
 
 # Lade Umgebungsvariablen
 load_dotenv()
@@ -39,10 +41,15 @@ app.state.limiter = limiter
 # CORS Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",  # Für lokale Entwicklung
+        "https://plaingen-nxmo9x6qp-stefan-ai.vercel.app",  # Deine Vercel Domain
+        "https://easiergen.de",  # Falls du eine Custom Domain nutzt
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    max_age=3600,
 )
 
 # OpenAI Client
@@ -119,42 +126,49 @@ async def execute_task(
 ):
     """Führt einen spezifischen Task aus"""
     try:
-        # Lade avoid_words
-        avoid_words = load_avoid_words()
-        
-        # Task Validierung
-        tasks_file = Path("tasks.yaml")
-        if tasks_file.exists():
-            with open(tasks_file, "r") as f:
-                tasks = yaml.safe_load(f)
-                if task_name not in tasks:
-                    raise HTTPException(
-                        status_code=404, 
-                        detail=f"Task '{task_name}' nicht gefunden"
-                    )
-        
-        # Crew Ausführung mit avoid_words
-        crew = LatestAiDevelopmentCrew()
-        crew.verbose = False
-        result = crew.crew().kickoff(
-            inputs={
-                "topic": request_data.topic, 
-                "language": request_data.language,
-                "avoid_words": avoid_words,
-                "address": request_data.address,
-                "mood": request_data.mood,
-                "perspective": request_data.perspective
-            }
-        )
-        
-        if hasattr(result, 'json_dict') and result.json_dict and 'posts' in result.json_dict:
-            return {"posts": result.json_dict["posts"]}
-        
-        raise HTTPException(
-            status_code=500, 
-            detail="Keine Posts im Output gefunden"
-        )
+        # Setze Timeout für die gesamte Operation
+        async with asyncio.timeout(60):  # 60 Sekunden Timeout
+            # Lade avoid_words
+            avoid_words = load_avoid_words()
+            
+            # Task Validierung
+            tasks_file = Path("tasks.yaml")
+            if tasks_file.exists():
+                with open(tasks_file, "r") as f:
+                    tasks = yaml.safe_load(f)
+                    if task_name not in tasks:
+                        raise HTTPException(
+                            status_code=404, 
+                            detail=f"Task '{task_name}' nicht gefunden"
+                        )
+            
+            # Crew Ausführung mit avoid_words
+            crew = LatestAiDevelopmentCrew()
+            crew.verbose = False
+            result = crew.crew().kickoff(
+                inputs={
+                    "topic": request_data.topic, 
+                    "language": request_data.language,
+                    "avoid_words": avoid_words,
+                    "address": request_data.address,
+                    "mood": request_data.mood,
+                    "perspective": request_data.perspective
+                }
+            )
+            
+            if hasattr(result, 'json_dict') and result.json_dict and 'posts' in result.json_dict:
+                return {"posts": result.json_dict["posts"]}
+            
+            raise HTTPException(
+                status_code=500, 
+                detail="Keine Posts im Output gefunden"
+            )
     
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail="Request Timeout - Die Anfrage dauerte zu lange"
+        )
     except Exception as e:
         logger.error(f"Fehler bei der Task-Ausführung: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
