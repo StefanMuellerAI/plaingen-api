@@ -107,15 +107,38 @@ class TopicRequest(BaseModel):
         description="Perspektive des Schreibers"
     )
 
-# Lade avoid_words aus der Config
-def load_avoid_words():
+# Asynchrone Datei-Operation
+async def load_avoid_words():
     avoid_words_path = Path("config/avoid_words.json")
     if not avoid_words_path.exists():
         logger.warning("avoid_words.json nicht gefunden")
         return []
     
-    with open(avoid_words_path, 'r', encoding='utf-8') as f:
-        return json.load(f)["avoid_words"]
+    return await asyncio.to_thread(
+        lambda: json.loads(avoid_words_path.read_text(encoding='utf-8'))["avoid_words"]
+    )
+
+# Asynchrone Prompt-Ladung
+async def load_prompt(transformation: str, text: str) -> str:
+    prompts_file = Path("config/prompts.md")
+    if not prompts_file.exists():
+        raise FileNotFoundError("prompts.md nicht gefunden")
+        
+    content = await asyncio.to_thread(lambda: prompts_file.read_text())
+    pattern = rf"## {transformation}\n(.*?)\n\n|## {transformation}\n(.*?)$"
+    match = re.search(pattern, content, re.DOTALL)
+    
+    if not match:
+        raise ValueError(f"Prompt für '{transformation}' nicht gefunden")
+        
+    prompt_template = next(group for group in match.groups() if group is not None).strip()
+    return prompt_template.replace("{text}", text)
+
+# CrewAI in separatem Thread
+async def execute_crew_task(crew, inputs):
+    return await asyncio.to_thread(
+        lambda: crew.crew().kickoff(inputs=inputs)
+    )
 
 @app.post("/task/{task_name}")
 @limiter.limit("100/minute")
@@ -125,28 +148,16 @@ async def execute_task(
     request_data: TopicRequest,  
     api_key: APIKey = Depends(get_api_key)
 ):
-    """Führt einen spezifischen Task aus"""
     try:
-        async with timeout(60):  # 60 Sekunden Timeout
-            # Lade avoid_words
-            avoid_words = load_avoid_words()
+        async with timeout(60):
+            avoid_words = await load_avoid_words()
             
-            # Task Validierung
-            tasks_file = Path("tasks.yaml")
-            if tasks_file.exists():
-                with open(tasks_file, "r") as f:
-                    tasks = yaml.safe_load(f)
-                    if task_name not in tasks:
-                        raise HTTPException(
-                            status_code=404, 
-                            detail=f"Task '{task_name}' nicht gefunden"
-                        )
-            
-            # Crew Ausführung mit avoid_words
             crew = LatestAiDevelopmentCrew()
             crew.verbose = False
-            result = crew.crew().kickoff(
-                inputs={
+            
+            result = await execute_crew_task(
+                crew,
+                {
                     "topic": request_data.topic, 
                     "language": request_data.language,
                     "avoid_words": avoid_words,
@@ -184,24 +195,6 @@ async def health_check():
         }
     }
 
-def load_prompt(transformation: str, text: str) -> str:
-    """Lädt den entsprechenden Prompt aus der MD-Datei und fügt den Text ein"""
-    prompts_file = Path("config/prompts.md")
-    if not prompts_file.exists():
-        raise FileNotFoundError("prompts.md nicht gefunden")
-        
-    content = prompts_file.read_text()
-    pattern = rf"## {transformation}\n(.*?)\n\n|## {transformation}\n(.*?)$"
-    match = re.search(pattern, content, re.DOTALL)
-    
-    if not match:
-        raise ValueError(f"Prompt für '{transformation}' nicht gefunden")
-        
-    prompt_template = next(group for group in match.groups() if group is not None).strip()
-    return prompt_template.replace("{text}", text)
-
-
-
 @app.post("/transform-text", response_model=TextTransformResponse)
 @limiter.limit("100/minute")
 async def transform_text(
@@ -211,7 +204,7 @@ async def transform_text(
 ):
     """Transformiert einen Text basierend auf der gewünschten Operation"""
     try:
-        prompt = load_prompt(text_request.transformation, text_request.text)
+        prompt = await load_prompt(text_request.transformation, text_request.text)
 
         completion = client.chat.completions.create(
             model="gpt-4o-mini",
