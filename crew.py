@@ -2,8 +2,8 @@ from crewai import Agent, Crew, Process, Task
 from crewai.project import CrewBase, agent, crew, task
 from crewai_tools import SerperDevTool
 from models import LinkedInResearchOutput
-
 from dotenv import load_dotenv
+
 load_dotenv()
 
 @CrewBase
@@ -15,7 +15,7 @@ class LatestAiDevelopmentCrew():
         return Agent(
             config=self.agents_config['researcher'],
             verbose=False,
-            tools=[SerperDevTool()]
+            tools=[SerperDevTool()],
         )
 
     @agent

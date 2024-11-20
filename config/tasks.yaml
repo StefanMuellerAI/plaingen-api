@@ -11,12 +11,17 @@ research_task:
 
 reporting_task:
   description: >
-    Transform the research findings into 5 engaging LinkedIn posts. Write in this language: {language}.
+    Transform the research findings into 5 engaging LinkedIn posts. Write in this language: {language} and avoid these words: {avoid_words}.
+    Address the reader {address}.
+    Refer to yourself as {perspective}.
     For each point:
-    1. Create an attention-grabbing title
-    2. Write compelling post content (max 3 paragraphs)
-    3. Ensure the content is professional and LinkedIn-appropriate
-    4. Format the output as a JSON object with 'posts' array containing 'titel' and 'text' for each post
+    1. Create an attention-grabbing title with a bit clickbait and two fitting emojis
+    2. Write compelling, unconventional post content (at least 10 sentences with 2 lines breaks after each sentence).
+    3. Use short sentences and simple language. 
+    4. Make it a very {mood} post.
+    5. Structure the post in a way that is easy to read and understand.
+    6. Write without a CTA. 
+    7. Format the output as a JSON object with 'posts' array containing 'titel' and 'text' for each post
   expected_output: >
     A JSON object containing exactly 5 LinkedIn posts, each with a title and content
   agent: reporting_analyst

@@ -1,13 +1,5 @@
 import os
 from dotenv import load_dotenv
-
-# Disable OpenTelemetry before other imports
-os.environ["OTEL_PYTHON_DISABLED"] = "true"
-os.environ["CREWAI_DISABLE_TELEMETRY"] = "true"
-
-
-
-# Dann erst die restlichen Imports
 from fastapi import FastAPI, HTTPException, Security, Depends, Request
 from fastapi.security.api_key import APIKeyHeader, APIKey
 from fastapi.middleware.cors import CORSMiddleware
@@ -27,6 +19,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 import litellm
 from slowapi.errors import RateLimitExceeded
+import json
 
 # Lade Umgebungsvariablen
 load_dotenv()
@@ -54,13 +47,12 @@ app.add_middleware(
 
 # OpenAI Client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-
 OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
 litellm.api_key = os.getenv('OPENAI_API_KEY')
+
 # API Key Setup
 API_KEY = os.getenv('API_KEY')
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
-
 
 
 async def get_api_key(
@@ -88,6 +80,34 @@ class TopicRequest(BaseModel):
         description="Der Sprachcode (z.B. DE, EN)",
         pattern="^[A-Z]{2}$"
     )
+    address: str = Field(
+        ..., 
+        min_length=8, 
+        max_length=10,
+        description="Du oder Sie Ansprache"
+    )
+    mood: str = Field(
+        ..., 
+        min_length=6, 
+        max_length=15,
+        description="Stimmung des Posts"
+    )
+    perspective: str = Field(
+        ..., 
+        min_length=2, 
+        max_length=2,
+        description="Perspektive des Schreibers"
+    )
+
+# Lade avoid_words aus der Config
+def load_avoid_words():
+    avoid_words_path = Path("config/avoid_words.json")
+    if not avoid_words_path.exists():
+        logger.warning("avoid_words.json nicht gefunden")
+        return []
+    
+    with open(avoid_words_path, 'r', encoding='utf-8') as f:
+        return json.load(f)["avoid_words"]
 
 @app.post("/task/{task_name}")
 @limiter.limit("100/minute")
@@ -99,6 +119,9 @@ async def execute_task(
 ):
     """Führt einen spezifischen Task aus"""
     try:
+        # Lade avoid_words
+        avoid_words = load_avoid_words()
+        
         # Task Validierung
         tasks_file = Path("tasks.yaml")
         if tasks_file.exists():
@@ -110,10 +133,19 @@ async def execute_task(
                         detail=f"Task '{task_name}' nicht gefunden"
                     )
         
-        # Crew Ausführung
+        # Crew Ausführung mit avoid_words
         crew = LatestAiDevelopmentCrew()
         crew.verbose = False
-        result = crew.crew().kickoff(inputs={"topic": request_data.topic, "language": request_data.language})
+        result = crew.crew().kickoff(
+            inputs={
+                "topic": request_data.topic, 
+                "language": request_data.language,
+                "avoid_words": avoid_words,
+                "address": request_data.address,
+                "mood": request_data.mood,
+                "perspective": request_data.perspective
+            }
+        )
         
         if hasattr(result, 'json_dict') and result.json_dict and 'posts' in result.json_dict:
             return {"posts": result.json_dict["posts"]}
