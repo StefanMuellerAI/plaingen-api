@@ -13,7 +13,7 @@ from crew import LatestAiDevelopmentCrew
 from dotenv import load_dotenv
 from models import TextTransformRequest, TextTransformResponse
 import re
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 from datetime import datetime
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -55,8 +55,6 @@ app.add_middleware(
 
 # OpenAI Client
 client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
-litellm.api_key = os.getenv('OPENAI_API_KEY')
 
 # API Key Setup
 API_KEY = os.getenv('API_KEY')
@@ -206,17 +204,23 @@ async def transform_text(
     try:
         prompt = await load_prompt(text_request.transformation, text_request.text)
 
-        completion = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": "Du bist ein Experte für Textoptimierung."},
-                {"role": "user", "content": prompt}
-            ]
+        # Asynchroner OpenAI-Aufruf
+        completion = await asyncio.to_thread(
+            lambda: client.chat.completions.create(
+                model="gpt-4",  # Korrigierter Modellname
+                messages=[
+                    {"role": "system", "content": "Du bist ein Experte für Textoptimierung."},
+                    {"role": "user", "content": prompt}
+                ]
+            )
         )
         
         transformed_text = completion.choices[0].message.content.strip()
         return TextTransformResponse(transformed_text=transformed_text)
         
+    except OpenAIError as e:
+        logger.error(f"OpenAI Fehler: {str(e)}")
+        raise HTTPException(status_code=500, detail="Fehler bei der Texttransformation")
     except Exception as e:
         logger.error(f"Fehler bei der Texttransformation: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
