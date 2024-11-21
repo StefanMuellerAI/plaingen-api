@@ -1,6 +1,6 @@
 import os
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Depends, Request
+from fastapi import FastAPI, HTTPException, Depends, Request, BackgroundTasks
 from fastapi.security.api_key import APIKeyHeader, APIKey
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.status import HTTP_403_FORBIDDEN
@@ -22,6 +22,7 @@ from async_timeout import timeout
 from fastapi.responses import JSONResponse
 import functools
 import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 
 # Lade Umgebungsvariablen
 load_dotenv()
@@ -178,6 +179,13 @@ async def execute_crew_task(crew, inputs):
 # Timeout für externe Anfragen
 DEFAULT_TIMEOUT = 300  # 5 Minuten
 
+# Globaler ThreadPool für CPU-intensive Operationen
+thread_pool = ThreadPoolExecutor(max_workers=4)
+
+# Semaphore für gleichzeitige Anfragen
+MAX_CONCURRENT_REQUESTS = 10
+request_semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+
 @app.post("/task/{task_name}")
 @limiter.limit("100/minute")
 async def execute_task(
@@ -298,25 +306,49 @@ crew = initialize_crew()
 # Endpoint anpassen
 @app.post("/research", response_model=LinkedInResearchOutput)
 @limiter.limit("10/minute")
-async def research_topic(request: Request, topic_request: TopicRequest):
+async def research_topic(request: Request, topic_request: TopicRequest, background_tasks: BackgroundTasks):
+    async with request_semaphore:  # Kontrolliere gleichzeitige Anfragen
+        try:
+            async with timeout(DEFAULT_TIMEOUT):
+                try:
+                    # Verwende den ThreadPool für CPU-intensive Operationen
+                    loop = asyncio.get_event_loop()
+                    crew = LatestAiDevelopmentCrew()
+                    result = await loop.run_in_executor(
+                        thread_pool,
+                        lambda: asyncio.run(crew.crew.run())
+                    )
+                    
+                    # Cleanup im Hintergrund
+                    background_tasks.add_task(cleanup_resources)
+                    
+                    return result
+                except Exception as e:
+                    logger.error(f"Error in research_topic: {str(e)}", exc_info=True)
+                    raise HTTPException(
+                        status_code=500,
+                        detail=f"Internal server error: {str(e)}"
+                    )
+        except asyncio.TimeoutError:
+            logger.error("Request timed out after %s seconds", DEFAULT_TIMEOUT)
+            raise HTTPException(
+                status_code=504,
+                detail="Request timed out"
+            )
+        except Exception as e:
+            logger.error(f"Unexpected error: {str(e)}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail="An unexpected error occurred"
+            )
+
+async def cleanup_resources():
+    """Cleanup-Funktion für Ressourcen nach der Anfrage"""
     try:
-        async with timeout(DEFAULT_TIMEOUT):
-            try:
-                # Verwende die vorinitialisierte Crew
-                result = await asyncio.create_task(crew.crew.run())
-                return result
-            except Exception as e:
-                logger.error(f"Error in research_topic: {str(e)}", exc_info=True)
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Internal server error: {str(e)}"
-                )
-    except asyncio.TimeoutError:
-        logger.error("Request timed out after %s seconds", DEFAULT_TIMEOUT)
-        raise HTTPException(
-            status_code=504,
-            detail="Request timed out"
-        )
+        # Hier können wir Cleanup-Operationen durchführen
+        await asyncio.sleep(0)  # Yield control
+    except Exception as e:
+        logger.error(f"Error in cleanup: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
