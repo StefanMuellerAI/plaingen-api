@@ -173,6 +173,9 @@ async def execute_crew_task(crew, inputs):
         lambda: crew.crew().kickoff(inputs=inputs)
     )
 
+# Timeout für externe Anfragen
+DEFAULT_TIMEOUT = 60  # Sekunden
+
 @app.post("/task/{task_name}")
 @limiter.limit("100/minute")
 async def execute_task(
@@ -182,7 +185,7 @@ async def execute_task(
     api_key: APIKey = Depends(get_api_key)
 ):
     try:
-        async with timeout(60):
+        async with timeout(DEFAULT_TIMEOUT):
             # Lade task config asynchron
             tasks_file = Path("config/tasks.yaml")
             if not tasks_file.exists():
