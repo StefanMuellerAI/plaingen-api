@@ -20,6 +20,8 @@ import json
 import asyncio
 from async_timeout import timeout
 from fastapi.responses import JSONResponse
+import functools
+import concurrent.futures
 
 # Lade Umgebungsvariablen
 load_dotenv()
@@ -174,7 +176,7 @@ async def execute_crew_task(crew, inputs):
     )
 
 # Timeout für externe Anfragen
-DEFAULT_TIMEOUT = 60  # Sekunden
+DEFAULT_TIMEOUT = 300  # 5 Minuten
 
 @app.post("/task/{task_name}")
 @limiter.limit("100/minute")
@@ -283,6 +285,38 @@ async def transform_text(
     except Exception as e:
         logger.error(f"Fehler bei der Texttransformation: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# Am Anfang der Datei
+# Initialisiere wichtige Komponenten beim Start
+@functools.lru_cache(maxsize=1)
+def initialize_crew():
+    return LatestAiDevelopmentCrew()
+
+# Initialisiere beim Startup
+crew = initialize_crew()
+
+# Endpoint anpassen
+@app.post("/research", response_model=LinkedInResearchOutput)
+@limiter.limit("10/minute")
+async def research_topic(request: Request, topic_request: TopicRequest):
+    try:
+        async with timeout(DEFAULT_TIMEOUT):
+            try:
+                # Verwende die vorinitialisierte Crew
+                result = await asyncio.create_task(crew.crew.run())
+                return result
+            except Exception as e:
+                logger.error(f"Error in research_topic: {str(e)}", exc_info=True)
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Internal server error: {str(e)}"
+                )
+    except asyncio.TimeoutError:
+        logger.error("Request timed out after %s seconds", DEFAULT_TIMEOUT)
+        raise HTTPException(
+            status_code=504,
+            detail="Request timed out"
+        )
 
 if __name__ == "__main__":
     import uvicorn
