@@ -56,7 +56,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "https://plaingen-nxmo9x6qp-stefan-ai.vercel.app",
-        "https://easiergen.de",
+        "https://easiergen.com",
         "https://gzzxujwokdyyihwsmgbk.supabase.co",
     ],
     allow_credentials=True,
