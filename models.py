@@ -4,6 +4,7 @@ from typing import List, Literal
 class LinkedInPost(BaseModel):
     titel: str
     text: str
+    cta: str
 
 class LinkedInResearchOutput(BaseModel):
     posts: List[LinkedInPost]

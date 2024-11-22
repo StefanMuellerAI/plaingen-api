@@ -131,12 +131,13 @@ class TopicRequest(BaseModel):
 
 # Lade avoid_words und prompts beim Start und cache sie
 avoid_words = []
+hooks = []
 prompts = {}
 crew_instance = None
 
 @app.on_event("startup")
 async def startup_event():
-    global avoid_words, prompts, crew_instance
+    global avoid_words, hooks, prompts, crew_instance
     
     try:
         avoid_words_path = Path("config/avoid_words.json")
@@ -145,7 +146,14 @@ async def startup_event():
         else:
             avoid_words = json.loads(avoid_words_path.read_text(encoding='utf-8')).get("avoid_words", [])
             logger.info("avoid_words erfolgreich geladen")
-        
+            
+        hooks_file = Path("config/hooks.json")
+        if hooks_file.exists():
+            hooks = json.loads(hooks_file.read_text(encoding='utf-8')).get("hooks", [])
+            logger.info("hooks erfolgreich geladen")
+        else:
+            logger.warning("hooks.json nicht gefunden")
+            
         prompts_file = Path("config/prompts.md")
         if prompts_file.exists():
             content = prompts_file.read_text()
@@ -219,6 +227,7 @@ async def execute_task(
                     "topic": request_data.topic, 
                     "language": request_data.language,
                     "avoid_words": avoid_words,
+                    "hooks": hooks,
                     "address": request_data.address,
                     "mood": request_data.mood,
                     "perspective": request_data.perspective

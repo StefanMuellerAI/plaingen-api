@@ -15,13 +15,13 @@ reporting_task:
     Address the reader {address}.
     Refer to yourself as {perspective}.
     For each point:
-    1. Create an attention-grabbing title with a bit clickbait and two fitting emojis
-    2. Write compelling, unconventional post content (at least 10 sentences with 2 lines breaks after each sentence).
+    1. Create an high emotional clickbait title with two fitting emojis at the end. Use the best fitting hook from following hooks: {hooks}.
+    2. Write compelling, unconventional post content according to the hook (at least 10 sentences with 2 lines breaks after each sentence).
     3. Use short sentences and simple language. 
-    4. Make it a very {mood} post.
+    4. Make it a {mood} post.
     5. Structure the post in a way that is easy to read and understand.
-    6. Write without a CTA. 
-    7. Format the output as a JSON object with 'posts' array containing 'titel' and 'text' for each post
+    6. Write a compelling CTA for further engagement in the categories "comment", "share" or "follow" with the audience. Start the CTA with "👉".
+    7. Format the output as a JSON object with 'posts' array containing 'titel' and 'text' and 'cta' for each post
   expected_output: >
-    A JSON object containing exactly 5 LinkedIn posts, each with a title and content
+    A JSON object containing exactly 5 LinkedIn posts, each with a title and text and cta.
   agent: reporting_analyst
