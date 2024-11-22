@@ -21,18 +21,30 @@ import asyncio
 from async_timeout import timeout
 from fastapi.responses import JSONResponse
 import functools
-import concurrent.futures
 from concurrent.futures import ThreadPoolExecutor
+from config.supabase import get_hooks_by_language, get_avoid_words_by_language, get_ctas_by_language
+import sys
 
 # Lade Umgebungsvariablen
 load_dotenv()
 
-# Logging Setup
+# Logging Setup am Anfang der Datei
 logging.basicConfig(
-    level=logging.INFO,  # Reduziertes Log-Volumen
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler('api.log')
+    ]
 )
 logger = logging.getLogger(__name__)
+
+# Stelle sicher, dass alle Handler das richtige Level haben
+for handler in logger.handlers:
+    handler.setLevel(logging.INFO)
+
+# Debug-Nachricht zum Testen des Loggings
+logger.info("API Server started")
 
 # API Setup mit Limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -131,29 +143,16 @@ class TopicRequest(BaseModel):
 
 # Lade avoid_words und prompts beim Start und cache sie
 avoid_words = []
+ctas = []
 hooks = []
 prompts = {}
 crew_instance = None
 
 @app.on_event("startup")
 async def startup_event():
-    global avoid_words, hooks, prompts, crew_instance
+    global avoid_words, hooks, ctas, prompts, crew_instance
     
-    try:
-        avoid_words_path = Path("config/avoid_words.json")
-        if not avoid_words_path.exists():
-            logger.warning("avoid_words.json nicht gefunden")
-        else:
-            avoid_words = json.loads(avoid_words_path.read_text(encoding='utf-8')).get("avoid_words", [])
-            logger.info("avoid_words erfolgreich geladen")
-            
-        hooks_file = Path("config/hooks.json")
-        if hooks_file.exists():
-            hooks = json.loads(hooks_file.read_text(encoding='utf-8')).get("hooks", [])
-            logger.info("hooks erfolgreich geladen")
-        else:
-            logger.warning("hooks.json nicht gefunden")
-            
+    try:            
         prompts_file = Path("config/prompts.md")
         if prompts_file.exists():
             content = prompts_file.read_text()
@@ -202,25 +201,55 @@ async def execute_task(
     request_data: TopicRequest,  
     api_key: APIKey = Depends(get_api_key)
 ):
+    logger.info(f"Incoming request - Task: {task_name}, Language: {request_data.language}")
+    
     try:
         async with timeout(DEFAULT_TIMEOUT):
-            # Lade task config asynchron
             tasks_file = Path("config/tasks.yaml")
             if not tasks_file.exists():
                 logger.error("tasks.yaml nicht gefunden")
-                raise HTTPException(
-                    status_code=500, 
-                    detail="tasks.yaml nicht gefunden"
-                )
-            tasks = await asyncio.to_thread(lambda: yaml.safe_load(tasks_file.read_text()))
-            if task_name not in tasks:
-                logger.warning(f"Task '{task_name}' nicht gefunden")
-                raise HTTPException(
-                    status_code=404, 
-                    detail=f"Task '{task_name}' nicht gefunden"
-                )
+                raise HTTPException(status_code=500, detail="tasks.yaml nicht gefunden")
             
-            # Ausführen der CrewAI-Aufgabe
+            # Lade sprachabhängige Daten aus Supabase
+            try:
+                hooks = await get_hooks_by_language(request_data.language)
+                avoid_words = await get_avoid_words_by_language(request_data.language)
+                ctas = await get_ctas_by_language(request_data.language)
+                
+                logger.info("\n=== Geladene Hooks ===")
+                for idx, hook in enumerate(hooks, 1):
+                    logger.info(f"{idx}. {hook}")
+                logger.info("===================\n")
+                
+                logger.info("\n=== Geladene Avoid Words ===")
+                for idx, word in enumerate(avoid_words, 1):
+                    logger.info(f"{idx}. {word}")
+                logger.info("===================\n")
+                
+                logger.info("\n=== Geladene CTAs ===")
+                for idx, cta in enumerate(ctas, 1):
+                    logger.info(f"{idx}. {cta}")
+                logger.info("===================\n")
+                
+                if not hooks:
+                    logger.warning(f"Keine Hooks für Sprache {request_data.language} gefunden")
+                    hooks = []
+                
+                if not avoid_words:
+                    logger.warning(f"Keine Avoid Words für Sprache {request_data.language} gefunden")
+                    avoid_words = []
+                    
+                if not ctas:
+                    logger.warning(f"Keine CTAs für Sprache {request_data.language} gefunden")
+                    ctas = []
+                    
+            except Exception as e:
+                logger.error(f"Fehler beim Laden der Supabase-Daten: {str(e)}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Fehler beim Laden der Sprachdaten: {str(e)}"
+                )
+
             result = await execute_crew_task(
                 crew_instance,
                 {
@@ -228,14 +257,23 @@ async def execute_task(
                     "language": request_data.language,
                     "avoid_words": avoid_words,
                     "hooks": hooks,
+                    "ctas": ctas,  # Neue CTAs werden übergeben
                     "address": request_data.address,
                     "mood": request_data.mood,
                     "perspective": request_data.perspective
                 }
             )
             
+            # Neue Verarbeitung der Antwort
+            if isinstance(result, str):
+                try:
+                    result_dict = json.loads(result)
+                    if "posts" in result_dict:
+                        return result_dict
+                except json.JSONDecodeError:
+                    pass
+                    
             if hasattr(result, 'json_dict') and result.json_dict and 'posts' in result.json_dict:
-                logger.info("Task erfolgreich ausgeführt")
                 return {"posts": result.json_dict["posts"]}
             
             logger.error("Keine Posts im Output gefunden")
@@ -284,7 +322,7 @@ async def transform_text(
         # Asynchroner OpenAI-Aufruf
         completion = await asyncio.to_thread(
             lambda: client.chat.completions.create(
-                model="gpt-4",
+                model="gpt-4o-mini",
                 messages=[
                     {"role": "system", "content": "Du bist ein Experte für Textoptimierung."},
                     {"role": "user", "content": prompt}

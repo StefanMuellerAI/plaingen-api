@@ -6,21 +6,21 @@ research_task:
     Make sure to find at least 5 different aspects or angles that could be turned into LinkedIn posts.
   expected_output: >
     A list of 5 interesting aspects about {topic}, each with a brief explanation of why it would make
-    a good LinkedIn post. Format as bullet points in {language} Language.
+    a good LinkedIn post. Format as bullet points.
   agent: researcher
 
 reporting_task:
   description: >
-    Transform the research findings into 5 engaging {language} LinkedIn posts. Avoid these words: {avoid_words}.
+    Transform the research findings into 5 engaging LinkedIn posts.
+    Avoid these words: {avoid_words}.
     Address the reader {address}.
     Refer to yourself as {perspective}.
     For each point:
-    1. Create an high emotional clickbait title with two fitting emojis at the end. Use the best fitting hook from following templates: {hooks}.
-    2. Write a compelling, unconventional post content (at least 10 sentences with 2 lines breaks after each sentence).
-    3. Use short sentences and simple language. 
-    4. Make it a {mood} post.
-    5. Write a compelling CTA for further engagement in the categories "comment", "share" or "follow". Start it with "👉".
-    7. Format the output as a JSON object with 'posts' array containing 'titel' and 'text' and 'cta' for each post
+    1. Create an high emotional clickbait title with two fitting emojis at the end. Use the best fitting hook from the following templates: {hooks}. Choose the correct hook according to language.
+    2. Write a compelling, unconventional {mood} post text (at least 10 sentences with 2 lines breaks after each sentence) with no cta. Use short sentences and simple language.
+    3. Write a compelling CTA by choosing randomly from these categories: {ctas}. Start it with "👉".
+    4. Format the output as a JSON object with 'posts' array containing 'titel' and 'text' and 'cta' for each post
+    Write in {language} (ES = Spanish, EN = English, DE = German, FR = French, IT = Italian).
   expected_output: >
     A JSON object containing exactly 5 LinkedIn posts, each with a title and text and cta.
   agent: reporting_analyst
