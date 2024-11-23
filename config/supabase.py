@@ -29,43 +29,31 @@ if not supabase_url or not supabase_key:
 supabase: Client = create_client(supabase_url, supabase_key)
 
 async def get_hooks_by_language(language: str):
-    print(f"\n{'='*50}")  # Visuelle Trennung für bessere Lesbarkeit
-    print(f"SUPABASE QUERY: Fetching hooks for language: {language}")
     try:
         response = supabase.table('hooks').select('hook').eq('language', language).eq('rights', 'admin').execute()
-        print(f"HOOKS RESPONSE: {pformat(response.data)}")
         hooks = [item['hook'] for item in response.data]
-        print(f"PROCESSED HOOKS: {pformat(hooks)}")
-        print(f"{'='*50}\n")
+        logger.debug(f"Retrieved {len(hooks)} hooks for language {language}")
         return hooks
     except Exception as e:
-        print(f"ERROR fetching hooks: {str(e)}")
+        logger.error(f"Error fetching hooks: {str(e)}")
         raise
 
 async def get_avoid_words_by_language(language: str):
-    print(f"\n{'='*50}")
-    print(f"SUPABASE QUERY: Fetching avoid words for language: {language}")
     try:
         response = supabase.table('avoid_words').select('word').eq('language', language).eq('rights', 'admin').execute()
-        print(f"AVOID WORDS RESPONSE: {pformat(response.data)}")
         avoid_words = [item['word'] for item in response.data]
-        print(f"PROCESSED AVOID WORDS: {pformat(avoid_words)}")
-        print(f"{'='*50}\n")
+        logger.debug(f"Retrieved {len(avoid_words)} avoid words for language {language}")
         return avoid_words
     except Exception as e:
-        print(f"ERROR fetching avoid words: {str(e)}")
+        logger.error(f"Error fetching avoid words: {str(e)}")
         raise
 
 async def get_ctas_by_language(language: str):
-    print(f"\n{'='*50}")
-    print(f"SUPABASE QUERY: Fetching CTAs for language: {language}")
     try:
         response = supabase.table('ctas').select('cta').eq('language', language).eq('rights', 'admin').execute()
-        print(f"CTAS RESPONSE: {pformat(response.data)}")
         ctas = [item['cta'] for item in response.data]
-        print(f"PROCESSED CTAS: {pformat(ctas)}")
-        print(f"{'='*50}\n")
+        logger.debug(f"Retrieved {len(ctas)} CTAs for language {language}")
         return ctas
     except Exception as e:
-        print(f"ERROR fetching CTAs: {str(e)}")
+        logger.error(f"Error fetching CTAs: {str(e)}")
         raise

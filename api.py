@@ -216,38 +216,25 @@ async def execute_task(
                 avoid_words = await get_avoid_words_by_language(request_data.language)
                 ctas = await get_ctas_by_language(request_data.language)
                 
-                logger.info("\n=== Geladene Hooks ===")
-                for idx, hook in enumerate(hooks, 1):
-                    logger.info(f"{idx}. {hook}")
-                logger.info("===================\n")
-                
-                logger.info("\n=== Geladene Avoid Words ===")
-                for idx, word in enumerate(avoid_words, 1):
-                    logger.info(f"{idx}. {word}")
-                logger.info("===================\n")
-                
-                logger.info("\n=== Geladene CTAs ===")
-                for idx, cta in enumerate(ctas, 1):
-                    logger.info(f"{idx}. {cta}")
-                logger.info("===================\n")
+                logger.debug(f"Successfully loaded data for language {request_data.language}")
                 
                 if not hooks:
-                    logger.warning(f"Keine Hooks für Sprache {request_data.language} gefunden")
+                    logger.warning(f"No hooks found for language {request_data.language}")
                     hooks = []
                 
                 if not avoid_words:
-                    logger.warning(f"Keine Avoid Words für Sprache {request_data.language} gefunden")
+                    logger.warning(f"No avoid words found for language {request_data.language}")
                     avoid_words = []
                     
                 if not ctas:
-                    logger.warning(f"Keine CTAs für Sprache {request_data.language} gefunden")
+                    logger.warning(f"No CTAs found for language {request_data.language}")
                     ctas = []
-                    
+
             except Exception as e:
-                logger.error(f"Fehler beim Laden der Supabase-Daten: {str(e)}")
+                logger.error(f"Error loading language data: {str(e)}")
                 raise HTTPException(
                     status_code=500,
-                    detail=f"Fehler beim Laden der Sprachdaten: {str(e)}"
+                    detail="Error loading language data"
                 )
 
             result = await execute_crew_task(

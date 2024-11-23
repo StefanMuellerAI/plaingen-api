@@ -42,6 +42,9 @@ class LatestAiDevelopmentCrew():
     @crew
     def crew(self) -> Crew:
         """Creates the LatestAiDevelopment crew"""
+        if hasattr(self, 'inputs') and 'language' in self.inputs:
+            self.agents['researcher'].tools = [SerperDevTool(country=self.inputs['language'])]
+        
         return Crew(
             agents=self.agents,
             tasks=self.tasks,
